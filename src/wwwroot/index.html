@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Memory.js</title>
+        <style>
+            body {
+                font-family: Arial, Helvetica, sans-serif;
+                background-color: black;
+            }
+
+            .card-container {
+                text-align: center;
+                padding: 0 0;
+            }
+
+            .card {
+                display: inline-block;
+                width: 16vw;
+                height: 16vw;
+                perspective: 1000px;
+                margin: 5px;
+            }
+
+            .card-inner {
+                width: 100%;
+                height: 100%;
+                text-align: center;
+                transition: transform 0.8s;
+                transform-style: preserve-3d;
+            }
+
+            .card-flipped .card-inner {
+                transform: rotateY(180deg);
+            }
+
+            .card-front, .card-back {
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                -webkit-backface-visibility: hidden;
+                backface-visibility: hidden;
+            }
+
+            .card-back {
+                background-color: white;
+                color: black;
+            }
+
+            .card-front {
+                background-color: white;
+                color: black;
+                transform: rotateY(180deg);
+            }
+
+            .card-front img, .card-back img {
+                width: 100%;
+                height: 100%;
+            }
+
+        </style>
+    </head>
+
+    <script>
+        var correctTimeout = 1000;
+        var incorrectTimeout = 3000;
+        var resetTimeout = 5000;
+        var flipTimeout = 800;
+        var debounceTimeout = 100;
+
+        var imageSources = [
+            "babblarna-babba.jpeg",
+            "babblarna-bibbi.jpeg",
+            "babblarna-bobbo.jpeg",
+            "babblarna-dadda.jpeg",
+            "babblarna-diddi.jpeg",
+            "babblarna-doddo.jpeg",
+            "babblarna-faffa.jpeg",
+            "babblarna-klonk.jpeg",
+            "babblarna-vovvo.jpeg",
+            "Spöket-Laban.png"
+        ];
+        var baxkImageSource = "back.png";
+
+        var blockedSound = new Audio("sounds/blocked.wav");
+        var completeSound = new Audio("sounds/complete.wav");
+        var correctSound = new Audio("sounds/correct.wav");
+        var incorrectSound = new Audio("sounds/incorrect.wav");
+        var flipCardSound = new Audio("sounds/flipcard.wav");
+
+        var cardContainer;
+        
+        var nImages = imageSources.length;
+        var cardImageIndices = [];
+
+        var blockFlipping = false;
+        var flippedCard = null;
+        var flippedCardImageIndex = -1;
+        var nCorrect = 0;
+
+        function FlipCard(cardIndex, card)
+        {
+            if (blockFlipping === true || card === flippedCard)
+            {
+                blockedSound.play();
+                return;
+            }
+
+            console.log(`cardIndex=${cardIndex}, card=${card}, flippedCard=${flippedCard}, flippedCardImageIndex=${flippedCardImageIndex}`);
+            card.classList.add("card-flipped");
+            flipCardSound.play();
+            if (flippedCard === null)
+            {
+                flippedCard = card;
+                flippedCardImageIndex = cardImageIndices[cardIndex];
+                console.log(`first card. flippedCardImageIndex=${flippedCardImageIndex}`);
+                return;
+            }
+
+            console.log(`second card. cardImageIndices[cardIndex]=${cardImageIndices[cardIndex]}`);
+
+            blockFlipping = true;
+
+            let localFlippedCard = flippedCard;
+            if (flippedCardImageIndex === cardImageIndices[cardIndex])
+            {
+                nCorrect += 2;
+                if (nCorrect == cardImageIndices.length)
+                {
+                    console.log ("Complete. Well done!");
+                    completeSound.play();
+                    setTimeout (()=>
+                    {
+                        for (let child = cardContainer.firstChild; child !== null; child = child.nextSibling)
+                        {
+                            child.classList.remove("card-flipped");
+                        }
+                        flipCardSound.play();
+                        setTimeout (Randomise, flipTimeout);
+                    }, resetTimeout);
+                }
+                else
+                {
+                    console.log(`Correct. ${nCorrect}/${cardImageIndices.length}`);
+                    correctSound.play();
+                    setTimeout(()=>
+                    {
+                        blockFlipping = false;
+                    }, debounceTimeout)
+                }
+            }
+            else
+            {
+                console.log("Incorrect");
+                incorrectSound.play();
+                setTimeout(()=>
+                {
+                    card.classList.remove("card-flipped");
+                    localFlippedCard.classList.remove("card-flipped");
+                    flipCardSound.play();
+                    blockFlipping = false;
+                }, incorrectTimeout);
+            }
+            flippedCard = null;
+            flippedCardImageIndex = -1;
+        }
+
+        function GetRandomIndex()
+        {
+            let startIndex = Math.floor(Math.random() * nImages * 2);
+            let index = startIndex;
+            while (cardImageIndices[index] != -1)
+            {
+                index = (index + 1) % (nImages * 2);
+                if (index === startIndex)
+                {
+                    return -1;
+                }
+            }
+            return index;
+        }
+
+        function Randomise()
+        {
+            flippedCard = null;
+            flippedCardImageIndex = -1;
+            blockFlipping = false;
+            nCorrect = 0;
+
+            // Clear the cards:
+            cardContainer.innerHTML = "";
+            for (let i = 0; i < nImages * 2; i++)
+            {
+                cardImageIndices[i] = -1;
+            }
+
+            // Randomise cards:
+            for (let i = 0; i < nImages * 2; i++)
+            {
+                cardImageIndices[GetRandomIndex()] = i;
+                cardImageIndices[GetRandomIndex()] = i;
+            }
+
+            // Create new cards:
+            for (let i = 0; i < cardImageIndices.length; i++)
+            {
+                let card = document.createElement("div");
+                card.classList.add("card");
+                let inner = document.createElement("div");
+                inner.classList.add("card-inner");
+
+                let back = document.createElement("div");
+                back.classList.add("card-back");
+                let img = document.createElement("img");
+                img.src = "images/" + baxkImageSource;
+                back.appendChild(img);
+                back.onclick = (ev) => FlipCard(i, card );
+                back.ontouchend = (ev) => {ev.stopPropagation(); ev.preventDefault(); FlipCard(i, card )};
+                inner.appendChild(back);
+
+                let front = document.createElement("div");
+                front.classList.add("card-front");
+                img = document.createElement("img");
+                img.src = "images/" + imageSources[cardImageIndices[i]];
+                front.appendChild(img);
+                inner.appendChild(front);
+
+                card.appendChild(inner);
+                cardContainer.appendChild(card);
+            }
+        }
+
+        window.onload = () =>
+        {
+            cardContainer = document.getElementById("cards");
+
+            Randomise();
+        }
+
+    </script>
+    
+    <body>
+        <div id="cards" class="card-container" />
+    </body>
+</html>
